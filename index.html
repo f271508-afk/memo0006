@@ -1,0 +1,172 @@
+!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>工程備忘</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,"Microsoft JhengHei",sans-serif;background:#f3f4f6;color:#1f2937}
+header{position:sticky;top:0;z-index:5;background:#c2410c;color:#fff;padding:10px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;flex:0 0 auto}
+header input{flex:1;min-width:140px;padding:8px 10px;border:0;border-radius:8px;font-size:15px}
+button{cursor:pointer;border:0;border-radius:8px;padding:8px 12px;font-size:14px;background:#e5e7eb}
+.pri{background:#c2410c;color:#fff}.hd{background:#fff;color:#c2410c;font-weight:700}
+.bar{padding:10px 12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{background:#fff;border:1px solid #d1d5db;border-radius:16px;padding:5px 12px}
+.chip.on{background:#c2410c;color:#fff;border-color:#c2410c}
+main{padding:0 12px 80px;display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.card{background:#fff;border-radius:12px;padding:12px;box-shadow:0 1px 3px #0002}
+.card h3{margin:0 0 4px;font-size:16px}
+.meta{font-size:12px;color:#6b7280;margin-bottom:6px}
+.tag{background:#ffedd5;color:#c2410c;border-radius:6px;padding:1px 6px;margin-right:6px}
+.txt{white-space:pre-wrap;word-break:break-word;font-size:14px;max-height:160px;overflow:auto}
+.files{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.files img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #ddd}
+.file{display:inline-flex;align-items:center;gap:4px;background:#eff6ff;color:#1d4ed8;text-decoration:none;border-radius:8px;padding:6px 8px;font-size:13px;max-width:100%}
+.file.x{background:#fee2e2;color:#b91c1c;border:0}
+.act{margin-top:8px;display:flex;gap:6px}
+#fab{position:fixed;right:16px;bottom:16px;width:56px;height:56px;border-radius:50%;font-size:28px;box-shadow:0 3px 8px #0004}
+dialog{border:0;border-radius:14px;padding:16px;width:min(560px,94vw);max-height:92vh}
+dialog::backdrop{background:#0006}
+dialog label{display:block;font-size:13px;color:#6b7280;margin:10px 0 3px}
+dialog input,dialog textarea,dialog select{width:100%;padding:9px;border:1px solid #d1d5db;border-radius:8px;font-size:15px;font-family:inherit}
+textarea{min-height:140px}
+.row{display:flex;gap:8px;margin-top:14px;justify-content:flex-end;flex-wrap:wrap}
+#msg{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#111c;color:#fff;padding:8px 14px;border-radius:20px;display:none;z-index:20;font-size:14px}
+.empty{grid-column:1/-1;text-align:center;color:#9ca3af;padding:40px}
+</style></head><body>
+<header><h1>🏗 工程備忘</h1><input id="q" type="search" placeholder="搜尋標題、內容、分類、檔名"><button class="hd" id="rf">同步</button><button class="hd" id="sh">QR分享</button><button class="hd" id="st">設定</button></header>
+<div class="bar" id="bar"></div>
+<main id="list"></main>
+<button class="pri" id="fab">＋</button>
+<div id="msg"></div>
+
+<dialog id="dEdit">
+<h3 id="dT">新增備忘</h3>
+<label>標題</label><input id="eT">
+<label>分類</label><select id="eC"></select>
+<label>內容</label><textarea id="eB"></textarea>
+<label>附件（照片／PDF／Word／Excel 等，存入 Google Drive）</label>
+<div class="row" style="justify-content:flex-start;margin-top:0">
+<button onclick="pic.click()">📷 照片</button><button onclick="fil.click()">📎 檔案</button></div>
+<input type="file" id="pic" accept="image/*" multiple hidden>
+<input type="file" id="fil" multiple hidden>
+<div class="files" id="eF"></div>
+<div class="row"><button id="eX">取消</button><button class="pri" id="eS">儲存</button></div>
+</dialog>
+
+<dialog id="dQR">
+<h3>掃描 QR Code 即可使用</h3>
+<p style="font-size:13px;color:#6b7280;margin:4px 0">用手機相機掃描，自動完成連線，不用輸入網址與密碼。此 QR 含有密碼，請只給要共用的人。</p>
+<div id="qr" style="display:flex;justify-content:center;padding:12px"></div>
+<input id="qL" readonly onclick="this.select()">
+<div class="row"><button id="qX">關閉</button></div>
+</dialog>
+
+<dialog id="dSet">
+<h3>連線設定</h3>
+<label>Apps Script 網頁應用程式網址</label><input id="sU" placeholder="https://script.google.com/macros/s/.../exec">
+<label>密碼（同 Code.gs 的 TOKEN）</label><input id="sK" type="password">
+<div class="row"><button id="sX">取消</button><button class="pri" id="sS">儲存並連線</button></div>
+</dialog>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+(()=>{const h=new URLSearchParams(location.hash.slice(1));if(h.get('u')){localStorage.setItem('memoCfg',JSON.stringify({url:h.get('u'),token:h.get('k')||''}));history.replaceState(null,'',location.pathname+location.search)}})();
+let cfg=JSON.parse(localStorage.getItem('memoCfg')||'{}'),S={cats:[],memos:[]},cat='全部',ed=null,busy=0;
+const toast=(t,ms=2000)=>{const m=$('#msg');m.textContent=t;m.style.display='block';if(ms)setTimeout(()=>m.style.display='none',ms)};
+async function api(a,d={}){
+  if(!cfg.url)throw new Error('請先設定連線');
+  const r=await fetch(cfg.url,{method:'POST',body:JSON.stringify({token:cfg.token,action:a,...d})});
+  const j=await r.json();if(j.error)throw new Error(j.error);return j;
+}
+async function load(){
+  if(!cfg.url){$('#dSet').showModal();return}
+  try{toast('同步中…',0);S=await api('list');toast('已同步');render()}catch(e){toast('錯誤：'+e.message,4000)}
+}
+const thumb=f=>`https://drive.google.com/thumbnail?id=${f.id}&sz=w400`;
+const isImg=f=>(f.mime||'').startsWith('image/');
+function filesHtml(fs,rm){
+  return fs.map((f,i)=>{
+    const x=rm?`<button class="file x" onclick="rmF(${i})">✕</button>`:'';
+    return isImg(f)
+      ?`<span><a href="${esc(f.url)}" target="_blank"><img src="${thumb(f)}" alt="${esc(f.name)}" loading="lazy"></a>${x}</span>`
+      :`<span><a class="file" href="${esc(f.url)}" target="_blank">📄 ${esc(f.name)}</a>${x}</span>`}).join('');
+}
+function render(){
+  const cs=['全部',...S.cats];if(S.memos.some(m=>!m.category))cs.push('未分類');
+  $('#bar').innerHTML=cs.map(c=>`<button class="chip ${c===cat?'on':''}" onclick="setCat(this.dataset.c)" data-c="${esc(c)}">${esc(c)}</button>`).join('')
+   +`<button class="chip" onclick="addCat()">＋ 分類</button>`
+   +(S.cats.includes(cat)?`<button class="chip" onclick="renCat()">✎ 改名</button><button class="chip" onclick="delCat()">🗑 刪除</button>`:'');
+  const k=$('#q').value.trim().toLowerCase();
+  const L=S.memos.filter(m=>(cat==='全部'||(cat==='未分類'?!m.category:m.category===cat))&&
+    (!k||[m.title,m.content,m.category,...m.files.map(f=>f.name)].join(' ').toLowerCase().includes(k)));
+  $('#list').innerHTML=L.length?L.map(m=>`<div class="card"><h3>${esc(m.title||'（無標題）')}</h3>
+   <div class="meta">${m.category?`<span class="tag">${esc(m.category)}</span>`:''}${esc(m.updated)}</div>
+   <div class="txt">${esc(m.content)}</div><div class="files">${filesHtml(m.files)}</div>
+   <div class="act"><button onclick="openEd('${m.id}')">編輯</button><button onclick="delMemo('${m.id}')">刪除</button></div></div>`).join('')
+   :'<div class="empty">沒有備忘</div>';
+}
+function setCat(c){cat=c;render()}
+async function addCat(){const n=(prompt('新分類名稱')||'').trim();if(!n)return;await run(()=>api('addCat',{name:n}));cat=n;load()}
+async function renCat(){const n=(prompt('新名稱',cat)||'').trim();if(!n||n===cat)return;await run(()=>api('renameCat',{old:cat,name:n}));cat=n;load()}
+async function delCat(){if(!confirm(`刪除分類「${cat}」？其備忘會變成未分類`))return;await run(()=>api('deleteCat',{name:cat}));cat='全部';load()}
+async function run(f){try{toast('處理中…',0);await f()}catch(e){toast('錯誤：'+e.message,4000)}}
+async function delMemo(id){if(!confirm('確定刪除此備忘及其附件？'))return;await run(()=>api('deleteMemo',{id}));load()}
+function openEd(id){
+  const m=S.memos.find(x=>x.id===id);
+  ed=m?{...m,files:[...m.files]}:{id:'',title:'',content:'',category:cat in{'全部':1,'未分類':1}?'':cat,files:[]};
+  $('#dT').textContent=m?'編輯備忘':'新增備忘';
+  $('#eC').innerHTML='<option value="">未分類</option>'+S.cats.map(c=>`<option ${c===ed.category?'selected':''}>${esc(c)}</option>`).join('');
+  $('#eT').value=ed.title;$('#eB').value=ed.content;drawF();$('#dEdit').showModal();
+}
+const drawF=()=>$('#eF').innerHTML=filesHtml(ed.files,1);
+function rmF(i){ed.files.splice(i,1);drawF()}
+function b64(f){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result.split(',')[1]);r.onerror=no;r.readAsDataURL(f)})}
+async function shrink(f){
+  if(!f.type.startsWith('image/')||f.type==='image/gif')return{mime:f.type,data:await b64(f),name:f.name};
+  const im=await createImageBitmap(f),s=Math.min(1,1800/Math.max(im.width,im.height));
+  const c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;
+  c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+  return{mime:'image/jpeg',data:c.toDataURL('image/jpeg',.82).split(',')[1],name:f.name.replace(/\.\w+$/,'')+'.jpg'};
+}
+async function pick(inp){
+  const fs=[...inp.files];inp.value='';
+  for(const [i,f] of fs.entries()){
+    if(f.size>25e6){toast(f.name+' 超過 25MB',3000);continue}
+    busy++;toast(`上傳中 ${i+1}/${fs.length}：${f.name}`,0);
+    try{const p=await shrink(f);const r=await api('upload',p);ed.files.push(r.file);drawF()}
+    catch(e){toast('上傳失敗：'+e.message,4000)}
+    busy--;
+  }
+  if(!busy)toast('上傳完成');
+}
+$('#pic').onchange=e=>pick(e.target);$('#fil').onchange=e=>pick(e.target);
+$('#eS').onclick=async()=>{
+  if(busy)return toast('附件上傳中，請稍候');
+  ed.title=$('#eT').value.trim();ed.content=$('#eB').value;ed.category=$('#eC').value;
+  if(!ed.title&&!ed.content&&!ed.files.length)return toast('請輸入內容');
+  $('#dEdit').close();await run(()=>api('saveMemo',{memo:ed}));load();
+};
+$('#eX').onclick=()=>$('#dEdit').close();
+$('#fab').onclick=()=>openEd('');
+$('#q').oninput=render;$('#rf').onclick=load;
+$('#st').onclick=()=>{$('#sU').value=cfg.url||'';$('#sK').value=cfg.token||'';$('#dSet').showModal()};
+$('#sh').onclick=()=>{
+  if(!cfg.url)return toast('請先完成連線設定',3000);
+  let base=location.protocol.startsWith('http')?location.origin+location.pathname+location.search:(localStorage.getItem('baseUrl')||'');
+  if(!base){base=(prompt('目前是本機檔案，手機無法開啟。\n請輸入 index.html 放置後的 https 網址：','https://')||'').trim();
+    if(!/^https?:\/\/.+/.test(base)||base==='https://')return toast('需要有效的網址才能產生 QR',3000);
+    localStorage.setItem('baseUrl',base)}
+  const l=base+'#u='+encodeURIComponent(cfg.url)+'&k='+encodeURIComponent(cfg.token||'');
+  $('#qr').innerHTML='';
+  try{new QRCode($('#qr'),{text:l,width:240,height:240,correctLevel:QRCode.CorrectLevel.L})}catch(e){$('#qr').textContent='QR 產生失敗，請確認網路可連線'}
+  $('#qL').value=l;$('#dQR').showModal();
+};
+$('#qX').onclick=()=>$('#dQR').close();
+$('#sX').onclick=()=>$('#dSet').close();
+$('#sS').onclick=()=>{cfg={url:$('#sU').value.trim(),token:$('#sK').value};localStorage.setItem('memoCfg',JSON.stringify(cfg));$('#dSet').close();load()};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&cfg.url&&!$('#dEdit').open)load()});
+load();
+</script></body></html>
